@@ -61,7 +61,7 @@ class Rcip_openshift_fact(object):
        f = open(tokenfile, 'r')
        return f.readline().strip()
      except IOError:
-         print "{\"service\": {\"fail\": \"tokenfile-inaccessible\"}}"
+       print "{\"service\": {\"fail\": \"tokenfile-inaccessible\"}}"
        sys.exit(0)
        
 
