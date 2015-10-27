@@ -61,7 +61,7 @@ class Rcip_openshift_fact(object):
        f = open(tokenfile, 'r')
        return f.readline().strip()
      except IOError:
-       print "{service: 'tokenfile-inaccessible'}"
+         print "{\"service\": {\"fail\": \"tokenfile-inaccessible\"}}"
        sys.exit(0)
        
 
@@ -82,7 +82,7 @@ class Rcip_openshift_fact(object):
      try:
        parsed_json = json.loads(rjson)
      except ValueError:
-       print "{service: 'GET %s %s'}" % (api_svc, rjson)
+       print "{\"service\": {\"fail\": \"GET %s %s\"}}" % (api_svc, rjson)
        sys.exit(0)
 
      ansible_facts_dict = {'service': {}}
