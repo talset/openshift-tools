@@ -67,11 +67,6 @@ class Rcip_openshift_fact(object):
 
   def get_svc(self,namespace=None):
 
-     print '{'
-     print '  "openshift_registry_cluster_ip": "openshift_registry_cluster_ip",'
-     print '  "openshift_router_cluster_ip": "openshift_router_cluster_ip",'
-     print '  "openshift_registry_kubernetes_ip": "openshift_registry_kubernetes_ip"'
-     print '}'
      if namespace:
          self.namespace = namespace
      api_svc = self.base_api + 'namespaces/' + self.namespace + '/services'
@@ -92,12 +87,13 @@ class Rcip_openshift_fact(object):
 
      ansible_facts_dict = {'service': {}}
      for item in parsed_json["items"]:
-       print item["metadata"]["name"]
-       print item["spec"]["portalIP"]
+       #print item["metadata"]["name"]
+       #print item["spec"]["portalIP"]
 
        ansible_facts_dict['service'][item["metadata"]["name"]] = item["spec"]["portalIP"]
 
      print json.dumps(ansible_facts_dict)
+
 
 
 if __name__ == "__main__":
