@@ -61,9 +61,9 @@ class Rcip_openshift_fact(object):
        f = open(tokenfile, 'r')
        return f.readline().strip()
      except IOError:
-       self.os_OUTPUT_MESSAGE += ' Error: File does not appear to exist'
-       self.os_STATE = 2
-       return "tokenfile-inaccessible"
+       print "{service: 'tokenfile-inaccessible'}"
+       sys.exit(0)
+       
 
   def get_svc(self,namespace=None):
 
@@ -82,8 +82,8 @@ class Rcip_openshift_fact(object):
      try:
        parsed_json = json.loads(rjson)
      except ValueError:
-       print "%s: GET %s %s" % (STATE_TEXT[STATE_UNKNOWN], api_svc, rjson)
-       sys.exit(STATE_UNKNOWN)
+       print "{service: 'GET %s %s'}" % (api_svc, rjson)
+       sys.exit(0)
 
      ansible_facts_dict = {'service': {}}
      for item in parsed_json["items"]:
