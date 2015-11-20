@@ -33,25 +33,21 @@ class Rcip_openshift_fact(object):
   A little object for use REST openshift v3 api
   """
 
-  proto = 'https'
-  host = '127.0.0.1'
-  port = 8443
-  token = None
-  tokenfile = '/etc/sensu/openshift_token'
-  headers = None
-  response = None
-  base_api = '/api/v1beta3/'
-  namespace = "default"
+  def __init__(self,
+               host='127.0.0.1',
+               port='8443',
+               token=None,
+               tokenfile='/etc/sensu/openshift_token',
+               proto='https',
+               base_api='/api/v1/',
+               namespace='default'):
 
-  def __init__(self, host=None, port=None, tokenfile=None, proto=None):
-     if proto is not None:
-         self.proto = proto
-
-     if host is not None:
-         self.host = host
-
-     if tokenfile is not None:
-         self.tokenfile = tokenfile
+     self.host      = host
+     self.port      = port
+     self.tokenfile = tokenfile
+     self.proto     = proto
+     self.base_api  = base_api
+     self.namespace = namespace
 
      self.token=self._tokenfile(self.tokenfile)
 
