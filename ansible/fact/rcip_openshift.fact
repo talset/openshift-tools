@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
    # https://docs.openshift.com/enterprise/3.0/rest_api/openshift_v1.html
 
-      stream = file('/etc/openshift/master/master-config.yaml', 'r')
+      stream = file('/etc/origin/master/master-config.yaml', 'r')
       master_config = yaml.load(stream)
 
       regex = re.match('^([^:]+)://([^:]+):([^ ]+)', master_config['masterPublicURL'])
