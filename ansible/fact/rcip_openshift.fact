@@ -19,91 +19,94 @@
 # Fact ansible to get the service ips
 
 import sys
-import argparse
-import subprocess
-import httplib
 import json
 import yaml
-import re
+import requests
 
-VERSION = '1.1'
+# Disable warning for insecure https
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+VERSION = '1.2'
+
 
 class Rcip_openshift_fact(object):
-  """
-  A little object for use REST openshift v3 api
-  """
+    """
+    A little object for use REST openshift v3 api
+    """
 
-  def __init__(self,
-               host='127.0.0.1',
-               port='8443',
-               token=None,
-               tokenfile='/etc/sensu/openshift_token',
-               proto='https',
-               base_api='/api/v1/',
-               namespace='default'):
+    def __init__(self,
+                 url='https://127.0.0.1:8443',
+                 token=None,
+                 tokenfile='/etc/sensu/openshift_token',
+                 base_api='/api/v1',
+                 namespace='default'):
 
-     self.host      = host
-     self.port      = port
-     self.tokenfile = tokenfile
-     self.proto     = proto
-     self.base_api  = base_api
-     self.namespace = namespace
+        self.url = url.rstrip('/')
+        self.tokenfile = tokenfile
+        self.base_api = base_api.rstrip('/')
+        self.namespace = namespace
+        self.token = self._tokenfile(self.tokenfile)
 
-     self.token=self._tokenfile(self.tokenfile)
+    def _tokenfile(self, tokenfile):
+        try:
+            f = open(tokenfile, 'r')
+            return f.readline().strip()
+        except IOError:
+            print "{\"service\": {\"fail\": \"tokenfile-inaccessible\"}}"
+            sys.exit(0)
 
-  def _tokenfile(self,tokenfile):
-     try:
-       f = open(tokenfile, 'r')
-       return f.readline().strip()
-     except IOError:
-       print "{\"service\": {\"fail\": \"tokenfile-inaccessible\"}}"
-       sys.exit(0)
-       
+    def get_svc(self, namespace=None):
+        "Return service ip for a namespace"
+        api_svc = self.get_json(url='%s/namespaces/%s/services' % (self.base_api, self.namespace)).get('items')
+        return {x['metadata']['name']: x["spec"]["portalIP"] for x in api_svc}
 
-  def get_svc(self,namespace=None):
+    def get_namespaces(self):
+        r = self.get_json(url='%s/namespaces' % self.base_api)
+        return r['items']
 
-     if namespace:
-         self.namespace = namespace
-     api_svc = self.base_api + 'namespaces/' + self.namespace + '/services'
+    def format_namespaces(self, namespaces):
+        """Make a dict of namespaces :
+           {namespace_name: namespace_content}"""
+        return {x['metadata']['name']: x for x in namespaces}
 
-     headers = {"Authorization": 'Bearer ' + self.token}
-     #TODO condition if http or http
-     conn = httplib.HTTPSConnection(self.host, self.port)
-     conn.request("GET", api_svc, "", headers)
+    def gathers_datas(self):
 
-     r1 = conn.getresponse()
-     rjson = r1.read()
-     conn.close()
+        # Get all namespaces
+        namespaces = self.get_namespaces()
+        formated_namespaces = self.format_namespaces(namespaces=namespaces)
 
-     try:
-       parsed_json = json.loads(rjson)
-     except ValueError:
-       print "{\"service\": {\"fail\": \"GET %s %s\"}}" % (api_svc, rjson)
-       sys.exit(0)
+        ansible_fact = {}
+        for namespace in formated_namespaces:
+            ansible_fact[namespace] = {}
+            ansible_fact[namespace]['services'] = self.get_svc(namespace=namespace)
 
-     ansible_facts_dict = {'service': {}}
-     for item in parsed_json["items"]:
-       #print item["metadata"]["name"]
-       #print item["spec"]["portalIP"]
+        return ansible_fact
 
-       ansible_facts_dict['service'][item["metadata"]["name"]] = item["spec"]["portalIP"]
+    def get_json(self, url):
 
-     print json.dumps(ansible_facts_dict)
-
+        headers = {"Authorization": 'Bearer %s' % self.token}
+        r = requests.get('%s%s' % (self.url, url),
+                         headers=headers,
+                         verify=False)  # don't check ssl
+        try:
+            return r.json()
+        except ValueError:
+            print "{'error': 'could not evaluate %s'}" % url
+            exit(1)
 
 
 if __name__ == "__main__":
 
-   # https://docs.openshift.com/enterprise/3.0/rest_api/openshift_v1.html
+    # https://docs.openshift.com/enterprise/3.0/rest_api/openshift_v1.html
 
-      stream = file('/etc/origin/master/master-config.yaml', 'r')
-      master_config = yaml.load(stream)
+    master_config = yaml.load(file('/etc/origin/master/master-config.yaml', 'r'))
 
-      regex = re.match('^([^:]+)://([^:]+):([^ ]+)', master_config['masterPublicURL'])
-      if regex is not None:
-        proto = regex.group(1)
-        host  = regex.group(2)
-        port  = regex.group(3)
+    try:
+        myosfact = Rcip_openshift_fact(url=master_config['oauthConfig']['masterURL'])
+    except KeyError:
+        print "{'error': 'could not find masterURL'}"
+        exit(1)
 
-      myosfact = Rcip_openshift_fact(proto=proto, host=host, port=port)
-      myosfact.get_svc()
+    datas = myosfact.gathers_datas()
+    print json.dumps(datas)
