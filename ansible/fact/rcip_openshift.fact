@@ -22,6 +22,7 @@ import sys
 import json
 import yaml
 import requests
+from os.path import isfile
 
 # Disable warning for insecure https
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -100,12 +101,22 @@ if __name__ == "__main__":
 
     # https://docs.openshift.com/enterprise/3.0/rest_api/openshift_v1.html
 
-    master_config = yaml.load(file('/etc/origin/master/master-config.yaml', 'r'))
+    # Legacy take /etc/openshift for openshift < 3.1
+    if isfile('/etc/origin/master/master-config.yaml'):
+        config_file = '/etc/origin/master/master-config.yaml'
+    else:
+        config_file = '/etc/openshift/master/master-config.yaml'
+
+    try:
+        master_config = yaml.load(file(config_file, 'r'))
+    except IOError:
+        print '{"error": "unable to load config file %s"}' % config_file
+        exit(1)
 
     try:
         myosfact = Rcip_openshift_fact(url=master_config['oauthConfig']['masterURL'])
     except KeyError:
-        print "{'error': 'could not find masterURL'}"
+        print '{"error": "could not find masterURL"}'
         exit(1)
 
     datas = myosfact.gathers_datas()
