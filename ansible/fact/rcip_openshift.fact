@@ -54,7 +54,7 @@ class Rcip_openshift_fact(object):
             f = open(tokenfile, 'r')
             return f.readline().strip()
         except IOError:
-            print "{\"service\": {\"fail\": \"tokenfile-inaccessible\"}}"
+            print "{\"default\": {\"services\": {\"fail\": \"tokenfile-inaccessible\"}}}"
             sys.exit(0)
 
     def get_svc(self, namespace=None):
