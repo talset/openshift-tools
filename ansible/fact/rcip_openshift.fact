@@ -18,17 +18,22 @@
 #
 # Fact ansible to get the service ips
 
-import sys
 import json
 import yaml
 import requests
+import os
 from os.path import isfile
 
 # Disable warning for insecure https
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-VERSION = '1.2'
+VERSION = '1.3'
+
+
+def print_error_and_exit(msg):
+    print(json.dumps({"default": {"services": {"error": msg}}}))
+    os._exit(1)
 
 
 class Rcip_openshift_fact(object):
@@ -54,12 +59,11 @@ class Rcip_openshift_fact(object):
             f = open(tokenfile, 'r')
             return f.readline().strip()
         except IOError:
-            print "{\"default\": {\"services\": {\"fail\": \"tokenfile-inaccessible\"}}}"
-            sys.exit(0)
+            raise Exception('tokenfile-inaccessible')
 
     def get_svc(self, namespace=None):
         "Return service ip for a namespace"
-        api_svc = self.get_json(url='%s/namespaces/%s/services' % (self.base_api, self.namespace)).get('items')
+        api_svc = self.get_json(url='%s/namespaces/%s/services' % (self.base_api, namespace)).get('items')
         return {x['metadata']['name']: x["spec"]["portalIP"] for x in api_svc}
 
     def get_namespaces(self):
@@ -85,16 +89,18 @@ class Rcip_openshift_fact(object):
         return ansible_fact
 
     def get_json(self, url):
+        try:
+            headers = {"Authorization": 'Bearer %s' % self.token}
+            r = requests.get('%s%s' % (self.url, url),
+                             headers=headers,
+                             verify=False)  # don't check ssl
+        except:
+            raise Exception('error-requests-get')
 
-        headers = {"Authorization": 'Bearer %s' % self.token}
-        r = requests.get('%s%s' % (self.url, url),
-                         headers=headers,
-                         verify=False)  # don't check ssl
         try:
             return r.json()
         except ValueError:
-            print "{'error': 'could not evaluate %s'}" % url
-            exit(1)
+            raise Exception('could not evaluate %s' % url)
 
 
 if __name__ == "__main__":
@@ -109,15 +115,21 @@ if __name__ == "__main__":
 
     try:
         master_config = yaml.load(file(config_file, 'r'))
-    except IOError:
-        print '{"error": "unable to load config file %s"}' % config_file
-        exit(1)
+    except (IOError, yaml.scanner.ScannerError):
+        print_error_and_exit('unable to load config file %s' % config_file)
 
     try:
-        myosfact = Rcip_openshift_fact(url=master_config['oauthConfig']['masterURL'])
-    except KeyError:
-        print '{"error": "could not find masterURL"}'
-        exit(1)
+        master_url = master_config['oauthConfig']['masterURL']
+    except:
+        print_error_and_exit('could not find masterURL')
 
-    datas = myosfact.gathers_datas()
-    print json.dumps(datas)
+    try:
+        myosfact = Rcip_openshift_fact(url=master_url)
+    except Exception as e:
+        print_error_and_exit('Error : %s %s' % (e.__class__.__name__, e.message[:200]))
+
+    try:
+        datas = myosfact.gathers_datas()
+        print(json.dumps(datas))
+    except Exception as e:
+        print_error_and_exit('Could not fetch datas : %s %s' % (e.__class__.__name__, e.message[:200]))
